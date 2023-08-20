@@ -6,7 +6,6 @@ const { User, validateSignup, validateSignin } = require("../models/user");
 
 
 async function mailer(email, code) {
-  console.log("inside mailer")
   let transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -53,7 +52,6 @@ const verify = async (req, res) => {
     console.log(verificationCode)
     await mailer(req.body.email, verificationCode);
     res.json({ message: "Verification code sent to your email", verificationCode });
-
   } catch (error) {
     console.log(error);
   }
@@ -68,7 +66,6 @@ const signup = async (req, res) => {
     email: req.body.email,
     password: req.body.password,
   });
-  console.log(user)
 
   user
     .save()
@@ -98,6 +95,7 @@ const signin = async (req, res) => {
   res.json({ token });
 }
 
+
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
@@ -105,26 +103,40 @@ const forgotPassword = async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" })
 
   const verificationCode = verificationCodeGenerator();
-  console.log(verificationCode)
   await mailer(req.body.email, verificationCode);
   res.json({ message: "Verification code sent to your email", verificationCode });
 }
 
+
 const resetPassword = async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email })
-  if (!user) return res.status(404).json({ error: "User not found" })
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  user.password = passwordHash;
-  user.save()
-    .then(() => res.json({ message: "Password reset successfully" }))
-    .catch((err) => res.status(400).json({ error: err.message }))
+  const user = await User.findOneAndUpdate({ email }, { password: passwordHash }, {new: true})
+  if (!user) return res.status(404).json({ error: "something went wrong" })
 
+  res.json({ message: "Password reset successfully" })
 
+}
+
+const getProfile = async (req, res) => {
+  const user = await User.findById(req.user._id).select('-password')
+  if(!user) return res.status(404).json({error: "something went wrong"})
+
+  res.json(user)
+}
+
+const updateUser = async (req, res) => {
+  const { name, username, emoji, email } = req.body;
+
+  const user = await User.findByIdAndUpdate(req.user._id, { name, username, emoji, email }, {new: true})
+  if(!user) return res.status(404).json({error: "something went wrong"})
+
+  res.json({user, message: "Profile updated successfully"})
 
 }
 
 
-module.exports = { verify, signup, signin, checker, forgotPassword, resetPassword }
+module.exports = { verify, signup, signin, checker, forgotPassword, resetPassword, getProfile, updateUser }
